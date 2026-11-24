@@ -5,7 +5,7 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
@@ -13,6 +13,18 @@ from pathlib import Path
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
+
+
+# Prevent browsers/proxies from serving stale activity data or outdated frontend files
+@app.middleware("http")
+async def disable_caching(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/activities"):
+        response.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -74,6 +86,42 @@ activities = {
         "schedule": "Fridays, 3:30 PM - 4:30 PM",
         "max_participants": 18,
         "participants": []
+    },
+    "Soccer Team": {
+        "description": "Train and compete in inter-school soccer matches",
+        "schedule": "Mondays and Wednesdays, 4:00 PM - 5:30 PM",
+        "max_participants": 22,
+        "participants": []
+    },
+    "Swimming Club": {
+        "description": "Improve swimming techniques and prepare for swim meets",
+        "schedule": "Tuesdays and Thursdays, 4:00 PM - 5:00 PM",
+        "max_participants": 15,
+        "participants": []
+    },
+    "Music Band": {
+        "description": "Play instruments together and perform at school events",
+        "schedule": "Tuesdays, 3:30 PM - 5:00 PM",
+        "max_participants": 25,
+        "participants": []
+    },
+    "Photography Club": {
+        "description": "Learn photography techniques and showcase your work in exhibitions",
+        "schedule": "Fridays, 3:30 PM - 5:00 PM",
+        "max_participants": 12,
+        "participants": []
+    },
+    "Math Olympiad": {
+        "description": "Solve challenging math problems and compete in math competitions",
+        "schedule": "Wednesdays, 3:30 PM - 4:30 PM",
+        "max_participants": 15,
+        "participants": []
+    },
+    "Book Club": {
+        "description": "Read and discuss classic and contemporary literature",
+        "schedule": "Mondays, 3:30 PM - 4:30 PM",
+        "max_participants": 14,
+        "participants": []
     }
 }
 
@@ -105,3 +153,18 @@ def signup_for_activity(activity_name: str, email: str):
     # Add student
     activity["participants"].append(email)
     return {"message": f"Signed up {email} for {activity_name}"}
+
+
+@app.delete("/activities/{activity_name}/unregister")
+def unregister_from_activity(activity_name: str, email: str):
+    """Unregister a student from an activity"""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    activity = activities[activity_name]
+
+    if email not in activity["participants"]:
+        raise HTTPException(status_code=404, detail="Student is not signed up for this activity")
+
+    activity["participants"].remove(email)
+    return {"message": f"Unregistered {email} from {activity_name}"}
